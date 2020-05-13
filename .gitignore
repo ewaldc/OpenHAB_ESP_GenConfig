@@ -1,0 +1,8 @@
+.pio
+*.code-workspace
+Debug
+lib
+Release
+__vm
+*.7z
+*.tmp

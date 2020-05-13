@@ -19,6 +19,6 @@ Head over to your OpenHab ESP project to build and run your OH2 server for ESP
 
 ## Limitations and know issues ##
 * At this moment only Windows 10 64-bit platform is supported
-* Not all files are extracted from the OpenHab 2.x development server (e.g. icons).  However, this exist already in the data folder of the OpenHab ESP project folder, at least those needed to run teh demo.
+* Not all files are extracted from the OpenHab 2.x development server (e.g. icons).  However, all (static) files needed exist already in the data folder of the OpenHab ESP project folder, including a set of icons to run the demo.
 * HabPanel is not (yet) supported by the generator, even though the OpenHab ESP server has initial support for HabPanel (copy the HabPanel files manually)
 * Tested on OpenHab 2.4 and 2.5

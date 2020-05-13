@@ -14,10 +14,11 @@ This generator is in support of [OpenHab ESP](https://github.com/ewaldc/OpenHAB-
 - include/main.h: key structures list list of Items, Groups, item/group count etc.
 - data/rest, data/conf/sitemap/, data/rest/services, data/rest/items extracted via REST API
 
-The code is tested on OpenHab 2.4 and 2.5.
-You are done now, head over to your OpenHab ESP project to build and run your OH2 server
+You are done now!
+Head over to your OpenHab ESP project to build and run your OH2 server for ESP
 
-## Limitations and know issue ##
+## Limitations and know issues ##
 * At this moment only Windows 10 64-bit platform is supported
 * Not all files are extracted from the OpenHab 2.x development server (e.g. icons).  However, this exist already in the data folder of the OpenHab ESP project folder, at least those needed to run teh demo.
 * HabPanel is not (yet) supported by the generator, even though the OpenHab ESP server has initial support for HabPanel (copy the HabPanel files manually)
+* Tested on OpenHab 2.4 and 2.5

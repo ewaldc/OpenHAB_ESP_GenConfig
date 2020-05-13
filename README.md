@@ -11,8 +11,8 @@ This generator is in support of [OpenHab ESP](https://github.com/ewaldc/OpenHAB-
 1. Modify _src/main.cpp_ file with the name of your development OpenHab server (e.g. on Windows or Linux), the port it listens to, the sitemap you want to use and the location of your OpenHab ESP project, also using vscode
 1. Compile and run
 1. The generator will copy all generator files to your OpenHab ESP project folder
-*     include/main.h: key structures list list of Items, Groups, item/group count etc.
-*			data/rest, data/conf/sitemap/, data/rest/services, data/rest/items extracted via REST API
+- include/main.h: key structures list list of Items, Groups, item/group count etc.
+- data/rest, data/conf/sitemap/, data/rest/services, data/rest/items extracted via REST API
 
 The code is tested on OpenHab 2.4 and 2.5.
 You are done now, head over to your OpenHab ESP project to build and run your OH2 server

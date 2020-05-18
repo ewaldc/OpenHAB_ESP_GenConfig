@@ -4,12 +4,11 @@
 // Edit include/secret_example.h and rename to include/secret.h
 #include "OHGenConfig.h"
 
-uint8_t itemCount = 0, groupCount = 0;      // required for GenConfig
+uint8_t itemCount = 0, groupCount = 0, pageCount = 0;     // required for GenConfig
 // Global parameters for configuration generation
 // -------------- Modify ------------------------
 static const char *SITEMAP = "demos";
 static const char *OPENHAB_SERVER = "192.168.1.20";
-static const int  LISTEN_PORT = 8080;
 #define OPENHAB_ESP_PATH "\\Documents\\Arduino\\OpenHAB_ESP\\"  // %USERPROFILE% will be prefixed to this PATH
 #define LISTEN_PORT 8080                // The port to listen for incoming TCP connections
 // -------------- Modify ------------------------

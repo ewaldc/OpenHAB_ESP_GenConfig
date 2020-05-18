@@ -1,6 +1,6 @@
 #include "OHGenConfig.h"
 // Following two variables are defined in main.cpp
-extern uint8_t itemCount, groupCount;
+extern uint8_t itemCount, groupCount, pageCount;
 
 //OpenHab::OpenHab(Item *items, unsigned short itemCount, const int port) : 
 OpenHab::OpenHab(const int port) : 
@@ -69,6 +69,16 @@ FORCE_INLINE OpenHab::Group *OpenHab::getGroup(const char *name) {
   return group;
 }
 
+FORCE_INLINE uint8_t OpenHab::getPageIdx(const char *name) {
+  uint8_t i;
+  for (i = 0; i < pageCount; i++)
+    if (strcmp(Pages[i], name) == 0) return i;
+  if (i == 255)
+    DbgPrintln("ERROR Maximum number of Pages > 255 !");
+  else Pages[pageCount++] = strdup(name);
+  return i;
+}
+
 FORCE_INLINE OpenHab::Item *OpenHab::getItem(const char *name) {
   Item *item = _itemList;
   while (item && (strcmp(item->name, name)))
@@ -121,80 +131,84 @@ FORCE_INLINE OpenHab::Group *OpenHab::addItemToGroup(const char *groupName, Item
   return newGroup(groupName, item, obj, ItemNull); // create or get group
 }
 
-void OpenHab::GenSitemap(const JsonVariant prototype, Sitemap *sitemap, size_t uriBaseLen) {
+void OpenHab::GenSitemap(const JsonVariant prototype, const char *pageId, size_t uriBaseLen) {
   if (prototype.is<JsonObject>()) {
     const JsonObject& obj = prototype;
     for (const JsonPair pair : obj) {
+      uint8_t pageIdx;
       const char *key = pair.key().c_str();
-      if (!strcmp(key, "link")) { // link to sitemap or item
+      if (!strcmp(key, "link")) { // Links to sitemap or item
         const char* link = pair.value().as<const char*>();
         obj[pair.key()] = link + uriBaseLen;
         DbgPrintln("Key: link - value: ", link + uriBaseLen);
-      } else {
-        if (!strcmp(key, "item")) {// Items
-          JsonObject itemObj = pair.value().as<JsonObject>();
-          const char *name = itemObj["name"];
-          DbgPrint("Key: item - name: ", name);
-          const char *state = itemObj["state"];
-          itemObj["state"] = ""; // we have copied state, discard it in JSON
-          DbgPrint(" - state: ", state);
-          const char *transformedState = itemObj["transformedState"];
-          if (transformedState) itemObj["transformedState"] = ""; // we have copied transformed state, discard it in JSON
-          JsonObject stateObj = itemObj["stateDescription"];
+      } else if (!strcmp_P(key, PSTR("linkedPage")) || !strcmp_P(key, PSTR("homepage"))) { // Pages
+        JsonObject pageObj = pair.value().as<JsonObject>();
+        pageId = pageObj[F("id")];
+        getPageIdx(pageId);
+        DbgPrintln(F("Key: page: "), pageId);
+		  } else if (!strcmp(key, "item")) {// Items
+        JsonObject itemObj = pair.value().as<JsonObject>();
+        const char *name = itemObj["name"];
+        DbgPrint("Key: item - name: ", name);
+        const char *state = itemObj["state"];
+        itemObj["state"] = ""; // we have copied state, discard it in JSON
+        DbgPrint(" - state: ", state);
+        const char *transformedState = itemObj["transformedState"];
+        if (transformedState) itemObj["transformedState"] = ""; // we have copied transformed state, discard it in JSON
+        JsonObject stateObj = itemObj["stateDescription"];
 
-          if (Item *item = getItem(name)) { // Test if item has already been created
-            item->refCount++;     // Increase reference count
-            DbgPrint(" - referenceCount", to_string(item->refCount));
-            if (stateObj) itemObj.remove("stateDescription");  // We have it still in master item
-            if (item->labelFormat) obj["label"] = ""; // Discard formatted label for widget in Json, we have it in master
-          } else {  // New item
-            itemCount++;  // Increase global count of items
-            DbgPrint(" - itemCount: ", to_string(itemCount));
-            const char *label = obj["label"];
-            DbgPrint(" - label: ", label);
-            ItemType itemType = getItemType(itemObj["type"]);
-            DbgPrint(" - type: ", to_string(itemType));
+        if (Item *item = getItem(name)) { // Test if item has already been created
+          item->refCount++;     // Increase reference count
+          DbgPrint(" - referenceCount", to_string(item->refCount));
+          if (stateObj) itemObj.remove("stateDescription");  // We have it still in master item
+          if (item->labelFormat) obj["label"] = ""; // Discard formatted label for widget in Json, we have it in master
+        } else {  // New item
+          itemCount++;  // Increase global count of items
+          DbgPrint(" - itemCount: ", to_string(itemCount));
+          const char *label = obj["label"];
+          DbgPrint(" - label: ", label);
+          ItemType itemType = getItemType(itemObj["type"]);
+          DbgPrint(" - type: ", to_string(itemType));
 
-            char *pattern = nullptr;
-            if (stateObj) {
-              pattern = (transformedState) ? "%s" : stateObj["pattern"].as<const char *>();
-              //DbgPrint(" - pattern: ", pattern); 
-              JsonArray options = stateObj["options"];
-              if (options.size() > 0) {
-                for (JsonVariant option : options)
-                  if (!strcmp(option["value"], state))
-                    state = option["label"];
-                DbgPrint(" - options state: ", state);
-              } else itemObj.remove("stateDescription"); //unless we have 'options' we no longer need statedesciption
-            }
-            char *formattedLabel = nullptr;
-            if (pattern) { // we have a formatted label
-              formattedLabel = genFormattedLabel(label, pattern, state);
-              DbgPrint(" - formattedLabel: ", formattedLabel);
-              if (itemType == ItemDateTime)
-                convDateTimeJavaToC(formattedLabel); // convert Java label format to C/C++ strftime format
-              obj["label"] = ""; // Discard formatted label for widget in Json
-            }
-            DbgPrintln("");
-            Group *group = (itemType == ItemGroup ) ? newGroup(name, nullptr, itemObj, ItemGroup) : nullptr;
-            _itemList = new Item{strdup(name), itemType, 0, 255, strcmp(state, "NULL") ? strdup(state) : nullptr, 
-              (formattedLabel) ? strdup(formattedLabel) : nullptr, group, _itemList};
-
-            JsonArray groupNames = itemObj["groupNames"];
-            if (groupNames.size() > 0)
-              for (JsonVariant groupName : groupNames)
-                addItemToGroup(groupName, _itemList, itemObj);
+          char *pattern = nullptr;
+          if (stateObj) {
+            pattern = (transformedState) ? "%s" : stateObj["pattern"].as<const char *>();
+            //DbgPrint(" - pattern: ", pattern); 
+            JsonArray options = stateObj["options"];
+            if (options.size() > 0) {
+              for (JsonVariant option : options)
+                if (!strcmp(option["value"], state))
+                  state = option["label"];
+              DbgPrint(" - options state: ", state);
+            } else itemObj.remove("stateDescription"); //unless we have 'options' we no longer need statedesciption
           }
+          char *formattedLabel = nullptr;
+          if (pattern) { // we have a formatted label
+            formattedLabel = genFormattedLabel(label, pattern, state);
+            DbgPrint(" - formattedLabel: ", formattedLabel);
+            if (itemType == ItemDateTime)
+              convDateTimeJavaToC(formattedLabel); // convert Java label format to C/C++ strftime format
+            obj["label"] = ""; // Discard formatted label for widget in Json
+          }
+          DbgPrintln("");
+          Group *group = (itemType == ItemGroup ) ? newGroup(name, nullptr, itemObj, ItemGroup) : nullptr;
+          _itemList = new Item{strdup(name), itemType, 0, 255, getPageIdx(pageId), strcmp(state, "NULL") ? strdup(state) : nullptr, 
+            (formattedLabel) ? strdup(formattedLabel) : nullptr, group, _itemList};
+
+          JsonArray groupNames = itemObj["groupNames"];
+          if (groupNames.size() > 0)
+            for (JsonVariant groupName : groupNames)
+              addItemToGroup(groupName, _itemList, itemObj);
         }
       }
-      GenSitemap(pair.value().as<JsonObject>(), sitemap, uriBaseLen); //, pair.key);
+      GenSitemap(pair.value().as<JsonObject>(), pageId, uriBaseLen); //, pair.key);
       for (auto arr : pair.value().as<JsonArray>()) {
-        GenSitemap(arr.as<JsonVariant>(), sitemap, uriBaseLen); //, pair.key);
+        GenSitemap(arr.as<JsonVariant>(), pageId, uriBaseLen); //, pair.key);
       }
     }
   } else if (prototype.is<JsonArray>()) {
     const JsonArray& arr = prototype;
-    for (const auto& elem : arr) GenSitemap(elem.as<JsonVariant>(), sitemap, uriBaseLen); //, parent);
+    for (const auto& elem : arr) GenSitemap(elem.as<JsonVariant>(), pageId, uriBaseLen); //, parent);
   }
 }
 
@@ -236,7 +250,7 @@ void OpenHab::GetSitemap(const char *uriBase, const char *sitemap) {
     DbgPrintln(" - HTTP GET completed");
     wfile.close();
     // Read sitemap as JsonObject from file
-    _sitemapList = new Sitemap{"sitemap.tmp", getJsonDocFromFile("sitemap.tmp"), nullptr};
+    _sitemap = new Sitemap{"sitemap.tmp", getJsonDocFromFile("sitemap.tmp")};
   } else DbgPrintln("HTTP GET failed");  
 }
 
@@ -251,16 +265,16 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
   GetREST(OpenHabServer, ESPpath + String("data\\conf"), "/rest");
 
   // Adapt the sitemap to conserve memory
-  GenSitemap(_sitemapList->jsonDoc.as<JsonObject>(), _sitemapList, uriBase.length());
+  GenSitemap(_sitemap->jsonDoc.as<JsonObject>(), nullptr, uriBase.length());
 
   // Print out the generated sitemap Json Object
   String sitemapFilename = ESPpath + String("data/conf/sitemaps/") + sitemap;
   ofstream sitemapFile(sitemapFilename.c_str(), ios::trunc);
-  serializeJson(_sitemapList->jsonDoc, sitemapFile);
+  serializeJson(_sitemap->jsonDoc, sitemapFile);
   sitemapFile << endl;
   
   // Create an array of pointers to list of Items
-  DbgPrintln(F("item count: "), to_string(itemCount));
+  DbgPrintln(F("Item count: "), to_string(itemCount));
   Item **itemList = new Item*[itemCount];
   Item *itemPtr = _itemList;
 
@@ -292,15 +306,17 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
   }
 
   // Create an array of pointers to list of Groups
-  DbgPrintln(F("group count: "), to_string(groupCount));
+  DbgPrintln(F("Total Group count: "), to_string(groupCount));
   Group **groupList = new Group*[groupCount];
-  groupCount = 0;
+  uint8_t groupCnt = 0;
   for (n = 0; n < itemCount; n++) {
     if (itemList[n]->type == ItemGroup) {
-      groupList[groupCount] = itemList[n]->group;
-      itemList[n]->groupIdx = groupCount++;
+      groupList[groupCnt] = itemList[n]->group;
+      itemList[n]->groupIdx = groupCnt++;
     }
   }
+  DbgPrintln(F("Dropped groups which are not used in Sitemap: "), to_string(groupCount - groupCnt));
+  DbgPrintln(F("Final Group count: "), to_string(groupCount));
 
   // Finally, write out the generated item, itemState and group list in include/main.h
   String items = "OpenHab::Item items[] PROGMEM = {";
@@ -313,6 +329,8 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
     items += to_string(itemList[i]->refCount);
     items += ", ";
     items += to_string(itemList[i]->groupIdx);
+    items += ", ";
+    items += to_string(itemList[i]->pageIdx);
     items += ", ";
     const char *state = itemList[i]->state;
     if (state) {  // Non-empty state
@@ -328,7 +346,8 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
         case ItemColor:
           items += "\"0\", "; break;
         default:  // All other types
-           items += "\"\", ";
+           //items += "\"\", ";
+           items += "nullptr, ";
       }  
     const char *labelFormat = itemList[i]->labelFormat;
     if (labelFormat) {
@@ -344,8 +363,8 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
   //itemState += to_string(itemCount);
   //itemState += "];";
 
-  String groups = F("OpenHab::Group groups[] = {");
-  for (unsigned int i = 0; i < groupCount; ) {
+  String groups = "OpenHab::Group groups[] = {";
+  for (unsigned int i = 0; i < groupCnt; ) {
     groups += "{";
     //groups += groupList[i]->name;
     //groups += ", ";   
@@ -365,7 +384,15 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
     groups += to_string(groupList[i]->itemCount);
     if (++i == groupCount) groups += "}};";
     else groups += "}, ";
-  } 
+  }
+
+  // Create an array of pointers to page Id's
+  DbgPrintln("Page count: ", to_string(pageCount));
+  String pages = "const char *pages[] PROGMEM = {\"";
+  for (unsigned int i = 0; i < pageCount; ) {
+    pages += Pages[i]; 
+    pages += (++i == pageCount) ? "\"};" : "\", \"";
+  }
   // Copy the following lines to include/main.h;
   String mainIncludeFile = String(ESPpath) + String("include/main.h");
   ofstream file(mainIncludeFile, ios::trunc);
@@ -373,8 +400,11 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
   file << "char *itemStates[itemCount];\n";
   file << "OpenHab::ItemReference *itemRef[itemCount];\n";
   file << items << endl;
-  file << "extern const uint8_t groupCount = " << to_string(groupCount) << ";\n"; // max 255 items on ESP8266
+  file << "extern const uint8_t groupCount = " << to_string(groupCnt) << ";\n"; // max 255 items on ESP8266
   file << groups << endl;
+  file << "extern const uint8_t pageCount = " << to_string(pageCount) << ";\n"; // max 255 items on ESP8266
+  file << pages << endl;
+  file << "JsonObject pageObj[pageCount];\n"; // max 255 items on ESP8266
   file.close();
 }
 

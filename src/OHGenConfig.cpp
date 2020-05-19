@@ -382,7 +382,7 @@ void OpenHab::GenConfig(const char *OpenHabServer, const int port, const char *s
     }
     groups += "}, ";
     groups += to_string(groupList[i]->itemCount);
-    if (++i == groupCount) groups += "}};";
+    if (++i == groupCnt) groups += "}};";
     else groups += "}, ";
   }
 
